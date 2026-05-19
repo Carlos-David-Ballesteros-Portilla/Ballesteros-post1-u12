@@ -1,137 +1,145 @@
-# Ballesteros-post2-u11 — Logging con SLF4J/Logback y Documentación con Swagger/OpenAPI
+# ballesteros-post1-u12
 
-Proyecto Spring Boot desarrollado para la Unidad 11 de Programación Web (UDES 2026).  
-Extiende el laboratorio anterior agregando logging estructurado con SLF4J/Logback  
-y documentación interactiva de la API con springdoc-openapi (Swagger UI).
+Aplicación Spring Boot contenedorizada con Docker y desplegada en Railway.  
+Laboratorio Post-Contenido 1 — Unidad 12: Despliegue y CI/CD.
 
----
+## Aplicación en producción
 
-## Arquitectura en capas
+**URL pública:** https://ballesteros-post1-u12-production.up.railway.app
 
+Verificar estado:
 ```
-controller/        ← Recibe peticiones HTTP, anotado con @Tag, @Operation, @ApiResponse
-service/           ← Lógica de negocio con logging SLF4J (INFO, WARN, DEBUG)
-repository/        ← Acceso a datos, extiende JpaRepository (patrón DAO)
-dto/               ← Objetos de transferencia anotados con @Schema
-entity/            ← Entidad JPA mapeada a la base de datos
-factory/           ← Conversión entre entidad y DTOs
-exception/         ← Manejo centralizado de errores con @RestControllerAdvice
+GET https://ballesteros-post1-u12-production.up.railway.app/actuator/health
 ```
+Respuesta esperada: `{"status":"UP"}`
 
 ---
 
-## Requisitos
+## Requisitos para ejecutar localmente
 
-- Java 17+
-- Maven 3.9.x
-- Spring Boot 3.2.x o superior
+- Docker Desktop instalado y en ejecución
+- Maven 3.8+ o el wrapper `mvnw` del proyecto
 
 ---
 
-## Ejecución
+## Construcción de la imagen Docker
+
+Desde la raíz del proyecto:
 
 ```bash
-# Clonar el repositorio
-git clone https://github.com/tu-usuario/Ballesteros-post2-u11.git
-cd Ballesteros-post2-u11
-
-# Iniciar la aplicación
-mvn spring-boot:run
+docker build -t ballesteros-post1-u12:local .
 ```
 
-La app queda disponible en `http://localhost:8080`.
+Verificar que la imagen fue creada:
+
+```bash
+docker images | grep ballesteros-post1-u12
+```
+
+La imagen final usa `eclipse-temurin:21-jre-alpine` y debe pesar menos de 300 MB.
 
 ---
 
-## Swagger UI
+## Ejecución local con Docker Compose
 
-Una vez iniciada la aplicación, la documentación interactiva está disponible en:
+El archivo `docker-compose.yml` orquesta dos servicios: la aplicación Spring Boot (`app`) y una base de datos PostgreSQL (`db`).
 
+### Variables de entorno usadas por Docker Compose
+
+| Variable | Valor en Compose | Descripción |
+|---|---|---|
+| `SPRING_PROFILES_ACTIVE` | `prod` | Activa el perfil de producción |
+| `DATABASE_URL` | `jdbc:postgresql://db:5432/appdb` | URL de conexión a PostgreSQL |
+| `DB_USER` | `appuser` | Usuario de la base de datos |
+| `DB_PASS` | `apppass` | Contraseña de la base de datos |
+
+### Levantar el stack completo
+
+```bash
+docker compose up -d --build
 ```
-http://localhost:8080/swagger-ui.html
+
+### Verificar que ambos servicios están corriendo
+
+```bash
+docker compose ps
 ```
 
-El JSON de la especificación OpenAPI está en:
+Ambos servicios deben aparecer en estado `Up` / `healthy`.
 
+### Probar la aplicación localmente
+
+```bash
+# Health check
+curl http://localhost:8080/actuator/health
+
+# Endpoints REST de la aplicación
+curl http://localhost:8080/api/productos
 ```
-http://localhost:8080/api-docs
+
+### Detener los servicios
+
+```bash
+docker compose down
+```
+
+Para eliminar también el volumen de datos de PostgreSQL:
+
+```bash
+docker compose down -v
 ```
 
 ---
 
-## Archivos de Log
+## Despliegue en Railway
 
-Los logs se escriben simultáneamente en consola y en archivo.  
-El archivo de log se encuentra en:
+### Variables de entorno configuradas en Railway
 
-```
-logs/catalogo.log
-```
+Las siguientes variables se configuraron en el panel "Variables" del servicio de la aplicación en Railway. Los valores de `DATABASE_URL`, `DB_USER` y `DB_PASS` se referencian directamente desde el servicio PostgreSQL aprovisionado por Railway.
 
-Con rotación diaria, los logs históricos se guardan como:
+| Variable | Valor referenciado en Railway |
+|---|---|
+| `SPRING_PROFILES_ACTIVE` | `prod` |
+| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` |
+| `DB_USER` | `${{Postgres.PGUSER}}` |
+| `DB_PASS` | `${{Postgres.PGPASSWORD}}` |
 
-```
-logs/catalogo.YYYY-MM-DD.log
-```
+### Proceso de despliegue
 
-Se conservan hasta 30 días de historial. La carpeta `logs/` está en `.gitignore`.
-
----
-
-## Niveles de Log configurados
-
-| Paquete | Nivel |
-|---------|-------|
-| `com.empresa.catalogo` | DEBUG |
-| Global | INFO |
+1. Repositorio conectado a Railway desde GitHub ("Deploy from GitHub repo").
+2. Railway detecta el `Dockerfile` automáticamente y construye la imagen.
+3. Se aprovisionó un servicio PostgreSQL desde el panel del proyecto.
+4. Se configuraron las variables de entorno referenciando el servicio de base de datos.
+5. Se generó el dominio público desde "Settings" → "Networking" → "Generate Domain".
 
 ---
 
-## Endpoints disponibles
+## Estructura del repositorio
 
-| Método | URL | Descripción | Status |
-|--------|-----|-------------|--------|
-| GET | /api/productos | Lista todos los productos activos | 200 |
-| GET | /api/productos/{id} | Busca un producto por id | 200 |
-| POST | /api/productos | Crea un nuevo producto | 201 |
-| DELETE | /api/productos/{id} | Elimina un producto por id | 204 |
-
----
-
-## Checkpoints verificados
-
----
-
-### Checkpoint 1 — SLF4J en el Servicio
-
-Al ejecutar `mvn spring-boot:run` y realizar un POST y un GET a `/api/productos`, los mensajes de log aparecen en consola con el formato configurado.
-
-Ejemplo de salida esperada:
 ```
-INFO  ProductoServiceImpl - Creando producto: nombre=Laptop, categoria=ELECTRONICA
-INFO  ProductoServiceImpl - Producto creado exitosamente con id=1
+ballesteros-post1-u12/
+├── src/
+│   └── main/
+│       └── resources/
+│           ├── application.properties
+│           └── application-prod.properties
+├── Dockerfile
+├── .dockerignore
+├── docker-compose.yml
+├── pom.xml
+└── README.md
 ```
 
-**Evidencia:**
+## Perfil de producción (`application-prod.properties`)
 
-![Checkpoint 1](docs/check%201.png)
+El perfil `prod` externaliza toda la configuración sensible a variables de entorno, desactiva la consola SQL y restringe los endpoints de Actuator a `health` e `info`.
 
----
-
-### Checkpoint 2 — Logback con archivo de log
-
-Tras reiniciar la aplicación y realizar operaciones, el archivo `logs/catalogo.log` existe y contiene los mensajes con formato de fecha completo.
-
-**Evidencia:**
-
-![Checkpoint 2](docs/check%202.png)
-
----
-
-### Checkpoint 3 — Swagger UI
-
-Swagger UI accesible en `http://localhost:8080/swagger-ui.html` muestra el grupo "Productos" con los endpoints POST, GET por id, GET todos y DELETE documentados. Cada endpoint muestra las respuestas 200/201, 400 y 404.
-
-**Evidencia:**
-
-![Checkpoint 3](docs/check%203.png)
+```properties
+spring.datasource.url=${DATABASE_URL}
+spring.datasource.username=${DB_USER}
+spring.datasource.password=${DB_PASS}
+spring.jpa.hibernate.ddl-auto=validate
+spring.jpa.show-sql=false
+logging.level.root=WARN
+management.endpoints.web.exposure.include=health,info
+```
